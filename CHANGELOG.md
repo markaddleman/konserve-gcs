@@ -5,6 +5,15 @@ All notable, user-visible changes to konserve-gcs are documented here.
 ## Unreleased
 
 ### Fixed
+- **A transient Google 5xx no longer fails a write for good.** Every overwrite
+  first copies the old object to `<key>.backup` with a server-side rewrite. The
+  Google client library retries only operations that it can prove are safe to
+  repeat, and a rewrite with no generation precondition is not one of them, so a
+  single `503 We encountered an internal error` failed the write after one
+  attempt (`Unretryable error (attempts: 1, maxAttempts: 6)`). In a Datahike
+  server that failure shut the writer down for good. The client now uses the
+  uniform retry strategy, so these calls retry within Google's retry budget.
+  Copying one object to the same backup key twice is harmless.
 - **Connecting to a store works with current konserve again.** The GCS backing
   did not implement `-store-exists?`, which konserve now probes on every connect
   (konserve#179). Creating or opening any store failed with

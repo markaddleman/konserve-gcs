@@ -26,7 +26,8 @@
             Storage$CopyRequest
             CopyWriter
             StorageException
-            StorageOptions]))
+            StorageOptions
+            StorageRetryStrategy]))
 
 (def ^:dynamic *default-bucket* "konserve")
 (def ^:dynamic *output-stream-buffer-size* (* 1024 1024))
@@ -435,6 +436,12 @@
   [{:keys [client project-id host]}]
   (or client
       (let [builder (StorageOptions/newBuilder)]
+        ;; The default strategy retries only operations that Google can prove are
+        ;; safe to repeat. The backup copy of an overwrite is a rewrite with no
+        ;; generation precondition, so a single 503 failed the write for good (and
+        ;; datahike's writer treats that as fatal). Copying the same object to the
+        ;; same backup key twice is harmless, so retry everything.
+        (.setStorageRetryStrategy builder (StorageRetryStrategy/getUniformStorageRetryStrategy))
         (when project-id
           (.setProjectId builder project-id))
         (when host
